@@ -1,0 +1,72 @@
+# Ads Aggregation & In-App Ad Platform
+
+This repository contains a starter platform for:
+- aggregating ad data from Facebook, TikTok, and LinkedIn
+- building an in-app ad server similar to Telegram-style ad placements
+- serving ads to apps via a lightweight API
+- tracking impression and click events
+
+## Architecture
+
+- Backend: FastAPI
+- Database: PostgreSQL
+- Cache: Redis
+- Frontend starter: React
+- Ad server: custom serving API for apps and placements
+
+## Quick start
+
+```bash
+cp .env.example .env
+
+docker compose up --build
+```
+
+Then open:
+- Backend API: http://localhost:8000/docs
+- Frontend: http://localhost:3000
+
+## Example ad serve call
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ads/serve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": 1,
+    "placement_id": 1,
+    "user_id_hash": "abc123",
+    "geo": {"country": "US"},
+    "device": {"platform": "android", "os_version": "14"}
+  }'
+```
+
+## Example event tracking
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ads/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "campaign_id": 1,
+    "placement_id": 1,
+    "event_type": "click",
+    "user_id_hash": "abc123",
+    "revenue": 0.0
+  }'
+```
+
+## In-app ad system
+
+This starter supports:
+- publisher apps
+- ad placements (banner/interstitial/rewarded/native)
+- campaigns assigned to placements
+- CPM/CPC ad model logic
+- ad event logging
+
+## Next milestones
+
+1. Add auth for advertisers and publishers
+2. Add campaign budget enforcement and reporting
+3. Add SDK for mobile/web publishers
+4. Add payment settlement and reporting
+5. Add Facebook/TikTok/LinkedIn connectors for unified social ad analytics

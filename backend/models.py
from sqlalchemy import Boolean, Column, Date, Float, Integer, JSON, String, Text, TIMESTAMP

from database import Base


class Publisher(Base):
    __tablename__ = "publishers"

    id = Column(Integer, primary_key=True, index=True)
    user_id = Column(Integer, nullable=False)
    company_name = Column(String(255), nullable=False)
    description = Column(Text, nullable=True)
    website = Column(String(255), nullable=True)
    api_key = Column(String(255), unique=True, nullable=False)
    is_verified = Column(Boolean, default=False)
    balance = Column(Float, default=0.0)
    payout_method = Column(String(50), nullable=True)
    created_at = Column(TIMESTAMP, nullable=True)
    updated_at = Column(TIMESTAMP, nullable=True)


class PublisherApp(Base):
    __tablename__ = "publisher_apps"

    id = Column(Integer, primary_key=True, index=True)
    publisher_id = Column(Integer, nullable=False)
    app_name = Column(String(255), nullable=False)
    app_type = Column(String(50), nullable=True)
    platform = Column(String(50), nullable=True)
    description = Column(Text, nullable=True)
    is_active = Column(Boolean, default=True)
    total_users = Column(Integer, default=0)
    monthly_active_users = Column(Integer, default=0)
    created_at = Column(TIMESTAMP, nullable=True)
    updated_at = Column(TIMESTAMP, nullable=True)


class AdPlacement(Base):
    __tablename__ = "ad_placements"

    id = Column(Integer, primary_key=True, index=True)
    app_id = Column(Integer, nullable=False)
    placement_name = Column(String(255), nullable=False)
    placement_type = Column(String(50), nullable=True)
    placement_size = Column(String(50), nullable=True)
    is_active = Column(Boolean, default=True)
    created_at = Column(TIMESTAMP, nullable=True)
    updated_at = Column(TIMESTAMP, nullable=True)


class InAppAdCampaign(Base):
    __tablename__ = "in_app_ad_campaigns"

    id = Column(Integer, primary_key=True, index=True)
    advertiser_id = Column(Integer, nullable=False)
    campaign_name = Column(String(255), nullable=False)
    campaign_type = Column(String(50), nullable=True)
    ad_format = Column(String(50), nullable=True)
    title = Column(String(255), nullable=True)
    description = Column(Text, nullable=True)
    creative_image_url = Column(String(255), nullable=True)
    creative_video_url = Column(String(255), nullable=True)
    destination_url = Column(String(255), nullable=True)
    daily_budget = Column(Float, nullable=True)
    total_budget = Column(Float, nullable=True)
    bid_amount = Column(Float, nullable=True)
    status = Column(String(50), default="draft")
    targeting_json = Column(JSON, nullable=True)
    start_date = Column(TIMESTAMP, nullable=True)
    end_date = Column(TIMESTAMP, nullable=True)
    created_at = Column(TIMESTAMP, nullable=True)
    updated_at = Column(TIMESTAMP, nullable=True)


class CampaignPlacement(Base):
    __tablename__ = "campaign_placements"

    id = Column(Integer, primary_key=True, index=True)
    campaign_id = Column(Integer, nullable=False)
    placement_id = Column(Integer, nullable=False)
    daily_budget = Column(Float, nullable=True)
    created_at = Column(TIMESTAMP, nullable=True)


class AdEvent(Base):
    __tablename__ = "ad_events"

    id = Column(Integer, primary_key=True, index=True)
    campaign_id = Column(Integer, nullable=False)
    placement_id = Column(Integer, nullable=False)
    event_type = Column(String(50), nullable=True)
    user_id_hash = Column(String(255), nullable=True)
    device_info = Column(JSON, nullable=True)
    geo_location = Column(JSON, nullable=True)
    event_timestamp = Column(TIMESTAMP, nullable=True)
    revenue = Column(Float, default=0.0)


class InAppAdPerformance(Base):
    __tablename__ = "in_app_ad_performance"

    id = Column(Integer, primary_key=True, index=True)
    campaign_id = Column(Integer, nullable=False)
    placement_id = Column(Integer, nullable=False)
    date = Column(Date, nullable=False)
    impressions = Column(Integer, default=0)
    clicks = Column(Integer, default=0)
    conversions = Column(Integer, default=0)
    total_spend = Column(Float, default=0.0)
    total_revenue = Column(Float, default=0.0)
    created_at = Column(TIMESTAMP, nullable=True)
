@@ -1,0 +1,157 @@
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from database import get_db
+from models import AdEvent, AdPlacement, CampaignPlacement, InAppAdCampaign, PublisherApp
+from schemas import AdEventRequest, AdServeRequest, AdServeResponse, CampaignCreateRequest, CampaignCreateResponse
+
+router = APIRouter(tags=["ads"])
+
+
+@router.get("/ads/health")
+def ads_health():
+    return {"status": "ok", "module": "ad-server"}
+
+
+@router.post("/ads/serve", response_model=AdServeResponse)
+def serve_ad(payload: AdServeRequest, db: Session = Depends(get_db)):
+    app = db.query(PublisherApp).filter(PublisherApp.id == payload.app_id).first()
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="App not found")
+
+    placement = db.query(AdPlacement).filter(
+        AdPlacement.id == payload.placement_id,
+        AdPlacement.app_id == payload.app_id,
+    ).first()
+    if not placement:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Placement not found")
+
+    campaign = (
+        db.query(InAppAdCampaign)
+        .join(CampaignPlacement, CampaignPlacement.campaign_id == InAppAdCampaign.id)
+        .filter(
+            CampaignPlacement.placement_id == payload.placement_id,
+            InAppAdCampaign.status == "active",
+        )
+        .order_by(InAppAdCampaign.bid_amount.desc())
+        .first()
+    )
+
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active campaign available for this placement",
+        )
+
+    impression = AdEvent(
+        campaign_id=campaign.id,
+        placement_id=payload.placement_id,
+        event_type="impression",
+        user_id_hash=payload.user_id_hash,
+        device_info=payload.device,
+        geo_location=payload.geo,
+        revenue=0.0,
+    )
+    db.add(impression)
+    db.commit()
+
+    return AdServeResponse(
+        campaign_id=campaign.id,
+        campaign_name=campaign.campaign_name,
+        title=campaign.title or campaign.campaign_name,
+        description=campaign.description,
+        destination_url=campaign.destination_url or "https://example.com",
+        ad_format=campaign.ad_format or "banner",
+        creative_image_url=campaign.creative_image_url,
+        creative_video_url=campaign.creative_video_url,
+        bid_amount=campaign.bid_amount or 0.0,
+        status=campaign.status,
+    )
+
+
+@router.post("/ads/events")
+def log_ad_event(payload: AdEventRequest, db: Session = Depends(get_db)):
+    event = AdEvent(
+        campaign_id=payload.campaign_id,
+        placement_id=payload.placement_id,
+        event_type=payload.event_type,
+        user_id_hash=payload.user_id_hash,
+        device_info=payload.device,
+        geo_location=payload.geo,
+        revenue=payload.revenue,
+    )
+    db.add(event)
+    db.commit()
+    return {"status": "ok", "event_type": payload.event_type}
+
+
+@router.post("/ads/campaigns", response_model=CampaignCreateResponse)
+def create_campaign(payload: CampaignCreateRequest, db: Session = Depends(get_db)):
+    campaign = InAppAdCampaign(
+        advertiser_id=payload.advertiser_id,
+        campaign_name=payload.campaign_name,
+        campaign_type=payload.campaign_type,
+        ad_format=payload.ad_format,
+        title=payload.title,
+        description=payload.description,
+        creative_image_url=payload.creative_image_url,
+        creative_video_url=payload.creative_video_url,
+        destination_url=payload.destination_url,
+        daily_budget=payload.daily_budget,
+        total_budget=payload.total_budget,
+        bid_amount=payload.bid_amount,
+        status=payload.status,
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+
+    for placement_id in payload.placement_ids:
+        assignment = CampaignPlacement(
+            campaign_id=campaign.id,
+            placement_id=placement_id,
+            daily_budget=payload.daily_budget,
+        )
+        db.add(assignment)
+
+    db.commit()
+
+    return CampaignCreateResponse(
+        id=campaign.id,
+        campaign_name=campaign.campaign_name,
+        status=campaign.status,
+        placement_ids=payload.placement_ids,
+    )
+
+
+@router.get("/ads/campaigns")
+def list_campaigns(db: Session = Depends(get_db)):
+    campaigns = db.query(InAppAdCampaign).all()
+    return [
+        {
+            "id": c.id,
+            "campaign_name": c.campaign_name,
+            "status": c.status,
+            "bid_amount": c.bid_amount,
+            "destination_url": c.destination_url,
+            "ad_format": c.ad_format,
+        }
+        for c in campaigns
+    ]
+
+
+@router.get("/publishers/apps")
+def list_apps(db: Session = Depends(get_db)):
+    apps = db.query(PublisherApp).all()
+    return [
+        {
+            "id": app.id,
+            "app_name": app.app_name,
+            "platform": app.platform,
+            "app_type": app.app_type,
+            "is_active": app.is_active,
+        }
+        for app in apps
+    ]

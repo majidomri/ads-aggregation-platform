@@ -1,0 +1,110 @@
+from sqlalchemy import Column, Date, Integer, String, Text, Float, Boolean, ForeignKey, TIMESTAMP, JSON
+from database import Base
+
+
+class Publisher(Base):
+    __tablename__ = "publishers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    company_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    website = Column(String(255), nullable=True)
+    api_key = Column(String(255), unique=True, nullable=False)
+    is_verified = Column(Boolean, default=False)
+    balance = Column(Float, default=0.0)
+    payout_method = Column(String(50), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class PublisherApp(Base):
+    __tablename__ = "publisher_apps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    publisher_id = Column(Integer, nullable=False)
+    app_name = Column(String(255), nullable=False)
+    app_type = Column(String(50), nullable=True)
+    platform = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    total_users = Column(Integer, default=0)
+    monthly_active_users = Column(Integer, default=0)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class AdPlacement(Base):
+    __tablename__ = "ad_placements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    app_id = Column(Integer, nullable=False)
+    placement_name = Column(String(255), nullable=False)
+    placement_type = Column(String(50), nullable=True)
+    placement_size = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class InAppAdCampaign(Base):
+    __tablename__ = "in_app_ad_campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    advertiser_id = Column(Integer, nullable=False)
+    campaign_name = Column(String(255), nullable=False)
+    campaign_type = Column(String(50), nullable=True)
+    ad_format = Column(String(50), nullable=True)
+    title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    creative_image_url = Column(String(255), nullable=True)
+    creative_video_url = Column(String(255), nullable=True)
+    destination_url = Column(String(255), nullable=True)
+    daily_budget = Column(Float, nullable=True)
+    total_budget = Column(Float, nullable=True)
+    bid_amount = Column(Float, nullable=True)
+    status = Column(String(50), default="draft")
+    targeting_json = Column(JSON, nullable=True)
+    start_date = Column(TIMESTAMP, nullable=True)
+    end_date = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class CampaignPlacement(Base):
+    __tablename__ = "campaign_placements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, nullable=False)
+    placement_id = Column(Integer, nullable=False)
+    daily_budget = Column(Float, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+
+
+class AdEvent(Base):
+    __tablename__ = "ad_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, nullable=False)
+    placement_id = Column(Integer, nullable=False)
+    event_type = Column(String(50), nullable=True)
+    user_id_hash = Column(String(255), nullable=True)
+    device_info = Column(JSON, nullable=True)
+    geo_location = Column(JSON, nullable=True)
+    event_timestamp = Column(TIMESTAMP, nullable=True)
+    revenue = Column(Float, default=0.0)
+
+
+class InAppAdPerformance(Base):
+    __tablename__ = "in_app_ad_performance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, nullable=False)
+    placement_id = Column(Integer, nullable=False)
+    date = Column(Date, nullable=False)
+    impressions = Column(Integer, default=0)
+    clicks = Column(Integer, default=0)
+    conversions = Column(Integer, default=0)
+    total_spend = Column(Float, default=0.0)
+    total_revenue = Column(Float, default=0.0)
+    created_at = Column(TIMESTAMP, nullable=True)
