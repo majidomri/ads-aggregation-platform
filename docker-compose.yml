@@ -1,59 +1,55 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
-    container_name: ads_platform_db
+    image: postgres:16-alpine
+    container_name: ads_platform_postgres
     environment:
-      POSTGRES_USER: ads_admin
-      POSTGRES_PASSWORD: ads_secure_password
-      POSTGRES_DB: ads_platform
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - ads_network
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02-seed_data.sql
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ads_admin"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - ads_network
 
-  # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: ads_platform_cache
+    container_name: ads_platform_redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - ads_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - ads_network
 
-  # FastAPI Backend
-  backend:
+  api:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
-    container_name: ads_platform_backend
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ads_platform_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      DATABASE_URL: postgresql://ads_admin:ads_secure_password@postgres:5432/ads_platform
-      REDIS_URL: redis://redis:6379/0
-      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-your_app_id}
-      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-your_app_secret}
-      TIKTOK_APP_ID: ${TIKTOK_APP_ID:-your_app_id}
-      TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET:-your_app_secret}
-      LINKEDIN_APP_ID: ${LINKEDIN_APP_ID:-your_app_id}
-      LINKEDIN_APP_SECRET: ${LINKEDIN_APP_SECRET:-your_app_secret}
-      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key}
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG}
+      REDIS_URL: ${REDIS_URL}
+    volumes:
+      - ./backend:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -61,47 +57,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    networks:
-      - ads_network
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Celery Worker (for async tasks)
-  celery_worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
-    container_name: ads_platform_celery
-    environment:
-      DATABASE_URL: postgresql://ads_admin:ads_secure_password@postgres:5432/ads_platform
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./backend:/app
-    networks:
-      - ads_network
-    command: celery -A tasks worker --loglevel=info
-
-  # React Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ads_platform_frontend
-    ports:
-      - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:8000
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     networks:
       - ads_network
 
